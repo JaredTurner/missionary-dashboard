@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Creswell Missionaries</title>
+    <title>Our Missionaries</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
@@ -41,10 +41,10 @@
         
         <div class="bg-white p-4 flex items-center justify-between border-b border-slate-200 z-10 relative">
             <div>
-                <h1 class="text-xl font-bold text-slate-800 tracking-tight leading-tight">Creswell Ward</h1>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight leading-tight">Called to Serve</h1>
                 <div class="text-blue-600 text-xs font-bold uppercase tracking-wide flex items-center gap-1">
                     <span class="mdi mdi-earth"></span>
-                    <span x-text="fleet.length + ' Missionaries Serving'"></span>
+                    <span x-text="fleet.length + ' Missionaries'"></span>
                 </div>
             </div>
         </div>
@@ -255,6 +255,33 @@
                         // album_url: "http://googleusercontent.com..."
                     },
                     {
+                        id: "elder_marchant",
+                        short_name: "Elder Marchant",
+                        full_name: "Elder Connor Marchant",
+                        photo_url: "images/eldermarchant.jpg", 
+                        mission_name: "Brazil São Paulo North Mission",
+                        description: "The northern part of São Paulo city and its surroundings present a blend of urban hustle and quieter residential areas, offering a glimpse into the" +
+                                     "everyday lives of Paulistanos. This region enjoys a subtropical climate," +
+                                     "facilitating a vibrant outdoor and café culture despite its urban setting." +
+                                     "The population here is incredibly diverse, contributing to a rich cultural" +
+                                     "tapestry expressed through food, festivals, and the arts. Portuguese remains" +
+                                     "the dominant language, with Roman Catholicism as the main religious" +
+                                     "affiliation, though the area's diversity is also mirrored in its variety of" +
+                                     "religious practices. The culture in São Paulo's north is characterized by its" +
+                                     "community-focused lifestyle, combining the conveniences of city living with a" +
+                                     "strong sense of local identity and tradition.",
+                        country_code: "br",
+                        return_date: "2027-03-27",
+                        latitude: -23.5505, longitude: -46.6333,
+                        timezone: "America/SaoPaulo",
+                        president: "F. Alan and Mary S. Walker",
+                        stats: { members: "1,525,436", stakes: "287", missions: "37", temples: "11", congregations: "2,096" }
+                        
+                        // CAROUSEL EXAMPLE
+                        // slides: ["anderson1.jpg", "anderson2.jpg", "anderson3.jpg"],
+                        // album_url: "http://googleusercontent.com..."
+                    },
+                    {
                         id: "elder_pratt",
                         short_name: "Elder Pratt",
                         full_name: "Elder Tyler Pratt",
@@ -443,6 +470,7 @@
     </script>
 </body>
 </html>
+
 
 
 
