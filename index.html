@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-slate-900 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Creswell Missionaries</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/@mdi/font@7.x/css/materialdesignicons.min.css" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <meta name="apple-mobile-web-app-title" content="Creswell Missionaries">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/854/854878.png">
+
+    <style>
+        [x-cloak] { display: none !important; }
+        #main-map { height: 350px; width: 100%; z-index: 1; }
+        #modal-map { height: 300px; width: 100%; z-index: 1; }
+        @media (min-width: 768px) { #main-map { height: 500px; } }
+        
+        .custom-pin { background: transparent; border: none; }
+        .pin-inner { width: 45px; height: 45px; border-radius: 50%; border: 3px solid white; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.4); background: #334155;}
+        .pin-inner img { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Dark Theme Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e293b; }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+    </style>
+</head>
+
+<body x-data="missionaryApp()" x-init="initApp()" class="min-h-screen antialiased pb-12 bg-slate-900">
+
+    <div class="relative w-full md:max-w-6xl md:mx-auto md:mt-6 shadow-2xl overflow-hidden border-b md:border border-slate-700 bg-slate-800 md:rounded-2xl flex flex-col">
+        
+        <div class="bg-white p-4 flex items-center justify-between border-b border-slate-200 z-10 relative">
+            <div>
+                <h1 class="text-xl font-bold text-slate-800 tracking-tight leading-tight">Creswell Ward</h1>
+                <div class="text-blue-600 text-xs font-bold uppercase tracking-wide flex items-center gap-1">
+                    <span class="mdi mdi-earth"></span>
+                    <span x-text="fleet.length + ' Missionaries Serving'"></span>
+                </div>
+            </div>
+        </div>
+
+        <div id="main-map" class="w-full bg-slate-100"></div>
+    </div>
+
+    <main class="max-w-6xl mx-auto p-4 md:p-6 mt-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <template x-for="person in fleet" :key="person.id">
+                <div @click="openModal(person)" 
+                     class="group bg-slate-800 hover:bg-slate-700/80 border border-slate-700 rounded-xl p-4 flex items-center gap-4 cursor-pointer transition-all hover:shadow-lg hover:border-blue-500/30">
+                    
+                    <img :src="person.photo_url" class="w-16 h-16 rounded-full object-cover border-2 border-slate-600 group-hover:border-blue-400 transition-colors shadow-sm">
+                    
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between items-start">
+                            <h2 class="font-bold text-lg text-white truncate" x-text="person.short_name"></h2>
+                            <img :src="'https://flagcdn.com/w20/' + person.country_code + '.png'" class="rounded-sm opacity-80 shadow-sm">
+                        </div>
+                        <p class="text-slate-400 text-sm truncate mb-3" x-text="person.mission_name"></p>
+                        
+                        <div class="flex items-center gap-2 overflow-x-auto no-scrollbar">
+                            <div class="bg-slate-700/50 text-slate-300 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border border-slate-600/50 flex items-center gap-1">
+                                <span class="mdi mdi-clock-outline text-xs"></span>
+                                <span x-text="getLocalTime(person.timezone)"></span>
+                            </div>
+                            <div class="bg-blue-900/30 text-blue-200 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap border border-blue-500/20 flex items-center gap-1" x-show="person.weather">
+                                <span class="mdi" :class="getWeatherIcon(person.weather?.current?.weather_code)"></span>
+                                <span x-text="Math.round(person.weather?.current?.temperature_2m) + '°F'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </main>
+
+    <div x-show="selectedPerson" x-cloak 
+         class="fixed inset-0 z-[2000] flex items-center justify-center p-4"
+         x-transition.opacity>
+        
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="closeModal()"></div>
+
+        <div class="relative w-full max-w-lg bg-slate-900 rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto border border-slate-700"
+             x-transition:enter="transition ease-out duration-300"
+             x-transition:enter-start="translate-y-8 opacity-0 scale-95"
+             x-transition:enter-end="translate-y-0 opacity-100 scale-100">
+            
+            <button @click="closeModal()" class="absolute top-4 right-4 z-10 p-2 bg-black/40 hover:bg-white/10 rounded-full transition">
+                <span class="mdi mdi-close text-white"></span>
+            </button>
+
+            <div class="text-center p-8 bg-slate-800 border-b border-slate-700">
+                <img :src="selectedPerson?.photo_url" class="w-28 h-28 rounded-full mx-auto mb-4 object-cover border-4 border-slate-700 shadow-xl">
+                <h2 class="text-2xl font-bold text-white" x-text="selectedPerson?.full_name"></h2>
+                <p class="text-blue-400 font-medium" x-text="selectedPerson?.mission_name"></p>
+            </div>
+
+            <div class="p-4 grid grid-cols-3 gap-2 bg-slate-800/50 border-b border-slate-700">
+                <div class="text-center p-2 rounded-lg bg-slate-800 border border-slate-700">
+                    <div class="text-[10px] uppercase font-bold text-slate-500">Return</div>
+                    <div class="text-sm font-bold text-slate-200" x-text="formatDateShort(selectedPerson?.return_date)"></div>
+                    <div class="text-[10px] text-blue-400 font-medium" x-text="getDaysLeft(selectedPerson?.return_date) + ' Days'"></div>
+                </div>
+                <div class="text-center p-2 rounded-lg bg-slate-800 border border-slate-700">
+                    <div class="text-[10px] uppercase font-bold text-slate-500">Time</div>
+                    <div class="text-sm font-bold text-slate-200" x-text="getLocalTime(selectedPerson?.timezone)"></div>
+                    <div class="text-[10px] text-slate-500 font-medium" x-text="getTimeDiff(selectedPerson?.timezone)"></div>
+                </div>
+                <div @click="showForecast = !showForecast" class="text-center p-2 rounded-lg bg-orange-900/20 border border-orange-500/20 cursor-pointer hover:bg-orange-900/30 transition">
+                    <div class="text-[10px] uppercase font-bold text-orange-400">Weather</div>
+                    <div class="flex items-center justify-center gap-1">
+                        <span class="mdi text-lg text-orange-400" :class="getWeatherIcon(selectedPerson?.weather?.current?.weather_code)"></span>
+                        <span class="text-sm font-bold text-slate-200" x-text="Math.round(selectedPerson?.weather?.current?.temperature_2m) + '°'"></span>
+                    </div>
+                    <div class="text-[10px] text-orange-400 font-medium">Forecast ▾</div>
+                </div>
+            </div>
+
+            <div x-show="showForecast" x-collapse class="bg-orange-900/10 border-b border-orange-500/10 p-4">
+                <h4 class="text-xs font-bold text-orange-400 uppercase mb-2">3-Day Forecast</h4>
+                <div class="grid grid-cols-3 gap-2">
+                    <template x-for="(day, index) in selectedPerson?.weather?.daily?.time?.slice(0,3)">
+                        <div class="text-center bg-slate-800 p-2 rounded border border-slate-700">
+                            <div class="text-[10px] text-slate-400 font-bold" x-text="getDayName(day)"></div>
+                            <span class="mdi text-xl text-orange-400 my-1 block" :class="getWeatherIcon(selectedPerson?.weather?.daily?.weather_code[index])"></span>
+                            <div class="text-xs font-bold text-slate-300">
+                                <span x-text="Math.round(selectedPerson?.weather?.daily?.temperature_2m_max[index])"></span>°
+                                <span class="text-slate-500 text-[10px]" x-text="Math.round(selectedPerson?.weather?.daily?.temperature_2m_min[index])"></span>°
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <div class="p-6 pb-0" x-show="selectedPerson?.slides && selectedPerson?.slides.length > 0">
+                <div class="relative rounded-xl overflow-hidden shadow-lg border border-slate-700 bg-slate-800 aspect-video group">
+                    <template x-for="(slide, index) in selectedPerson?.slides">
+                        <img :src="slide" 
+                             x-show="slideIndex === index"
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-200"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute inset-0 w-full h-full object-cover">
+                    </template>
+
+                    <div x-show="selectedPerson?.slides?.length > 1">
+                        <button @click.stop="prevSlide()" class="absolute left-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100">
+                            <span class="mdi mdi-chevron-left text-2xl"></span>
+                        </button>
+                        <button @click.stop="nextSlide()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-1 rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100">
+                            <span class="mdi mdi-chevron-right text-2xl"></span>
+                        </button>
+                        <div class="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+                            <template x-for="(slide, index) in selectedPerson?.slides">
+                                <div class="w-1.5 h-1.5 rounded-full transition-all shadow-sm" :class="slideIndex === index ? 'bg-white scale-125' : 'bg-white/50'"></div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <a x-show="selectedPerson?.album_url" :href="selectedPerson.album_url" target="_blank" class="absolute top-2 right-2 bg-black/40 hover:bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-md transition flex items-center gap-1 shadow-sm border border-white/10">
+                        <span>All Photos</span>
+                        <span class="mdi mdi-open-in-new"></span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="p-6 space-y-6">
+                <div class="prose prose-sm prose-invert max-w-none">
+                    <h3 class="text-slate-400 font-bold text-sm uppercase tracking-wide border-b border-slate-700 pb-2 mb-3">About the Mission</h3>
+                    
+                    <p class="text-slate-300 leading-relaxed mb-4" x-text="selectedPerson?.description"></p>
+                    
+                    <div class="flex items-center gap-3 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <div class="bg-slate-700 p-2 rounded-full shadow-sm">
+                            <span class="mdi mdi-account-tie text-slate-300 text-lg"></span>
+                        </div>
+                        <div>
+                            <div class="text-[10px] uppercase font-bold text-slate-500">Mission President and Companion</div>
+                            <div class="text-sm font-bold text-white" x-text="selectedPerson?.president"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-slate-400 font-bold text-sm uppercase tracking-wide border-b border-slate-700 pb-2 mb-3">Region Statistics</h3>
+                    
+                    <div class="grid grid-cols-2 gap-3" x-show="selectedPerson?.stats">
+                        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <div class="text-[10px] uppercase font-bold text-blue-400 mb-1">Members</div>
+                            <div class="text-sm font-mono font-bold text-slate-200" x-text="selectedPerson?.stats?.members"></div>
+                        </div>
+                        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <div class="text-[10px] uppercase font-bold text-blue-400 mb-1">Stakes</div>
+                            <div class="text-sm font-mono font-bold text-slate-200" x-text="selectedPerson?.stats?.stakes"></div>
+                        </div>
+                        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <div class="text-[10px] uppercase font-bold text-blue-400 mb-1">Congregations</div>
+                            <div class="text-sm font-mono font-bold text-slate-200" x-text="selectedPerson?.stats?.congregations"></div>
+                        </div>
+                        <div class="bg-slate-800 p-3 rounded-lg border border-slate-700">
+                            <div class="text-[10px] uppercase font-bold text-blue-400 mb-1">Temples</div>
+                            <div class="text-sm font-mono font-bold text-slate-200" x-text="selectedPerson?.stats?.temples"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-slate-400 font-bold text-sm uppercase tracking-wide border-b border-slate-700 pb-2 mb-3">Mission Boundaries</h3>
+                    <div id="modal-map" class="rounded-xl border border-slate-700 shadow-sm overflow-hidden"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function missionaryApp() {
+            return {
+                selectedPerson: null,
+                showForecast: false,
+                slideIndex: 0,
+                mainMap: null,
+                modalMap: null,
+                missionShapes: null, 
+                
+                // --- FLEET DATA ---
+                fleet: [
+                    {
+                        id: "elder_anderson",
+                        short_name: "Elder Anderson",
+                        full_name: "Elder Vedder Anderson",
+                        photo_url: "elderanderson.jpg", 
+                        mission_name: "Brazil Fortaleza East Mission",
+                        description: "Fortaleza, a vibrant city on Brazil's northeastern coast, is known for its beautiful beaches, rich cultural history, and lively atmosphere. The climate is tropical, with hot temperatures year-round and a refreshing sea breeze.",
+                        country_code: "br",
+                        return_date: "2027-09-09",
+                        latitude: -3.7319, longitude: -38.5267,
+                        timezone: "America/Fortaleza",
+                        president: "Steven J. and Lisa Page",
+                        stats: { members: "1,525,436", stakes: "287", missions: "37", temples: "11", congregations: "2,096" }
+                        
+                        // CAROUSEL EXAMPLE
+                        // slides: ["anderson1.jpg", "anderson2.jpg", "anderson3.jpg"],
+                        // album_url: "http://googleusercontent.com..."
+                    },
+                    {
+                        id: "elder_pratt",
+                        short_name: "Elder Pratt",
+                        full_name: "Elder Tyler Pratt",
+                        photo_url: "elderpratt.jpg", 
+                        mission_name: "Puerto Rico San Juan Mission",
+                        description: "The Puerto Rico San Juan Mission includes the vibrant capital city, known for its colorful Spanish colonial buildings and sandy beaches. Spanish and English are widely spoken, with a culture deeply rooted in a blend of Taíno, African, and Spanish influences.",
+                        country_code: "pr",
+                        return_date: "2026-07-16",
+                        latitude: 18.4655, longitude: -66.1057,
+                        timezone: "America/Puerto_Rico",
+                        president: "Paul and Karryl Horstmeier",
+                        stats: { members: "23,454", stakes: "5", missions: "1", temples: "1", congregations: "38" },
+
+                        // CAROUSEL EXAMPLE
+                        slides: ["elderpratt3.jpg", "elderpratt2.jpg", "elderpratt4.jpg", "elderpratt5.jpg", "elderpratt1.jpg"],
+                        album_url: "https://photos.app.goo.gl/Dfw5kSTsnAjjMzySA"
+                    },
+                    {
+                        id: "sister_anderson",
+                        short_name: "Sister Anderson",
+                        full_name: "Sister Izzy Anderson",
+                        photo_url: "sisteranderson.jpg", 
+                        mission_name: "Argentina Mendoza Mission",
+                        description: "In the foothills of the Andes, the Mendoza Mission serves a region renowned for its vineyards and as the center of the Argentine wine industry. Spanish is the spoken language, and the culture is heavily influenced by outdoor activities like skiing and mountaineering.",
+                        country_code: "ar",
+                        return_date: "2027-03-04",
+                        latitude: -32.8895, longitude: -68.8458,
+                        timezone: "America/Argentina/Mendoza",
+                        president: "Thomas and Pamela Ingersoll", 
+                        stats: { members: "491,160", stakes: "80", missions: "14", temples: "4", congregations: "732" }
+                    },
+                    {
+                        id: "sister_jackson",
+                        short_name: "Sister Jackson",
+                        full_name: "Sister Ruby Jackson",
+                        photo_url: "sisterjackson.jpg", 
+                        mission_name: "Arizona Mesa Mission",
+                        description: "Mesa is known for its rich Latter-day Saint history and as a center for cultural events in the East Valley. The city has a strong cultural influence, visible in the presence of the Mesa Arizona Temple and the annual Easter Pageant.",
+                        country_code: "us",
+                        return_date: "2027-03-04",
+                        latitude: 33.4152, longitude: -111.8315,
+                        timezone: "America/Phoenix",
+                        president: "Christopher A. and Stacey K. Lythgoe",
+                        stats: { members: "444,789", stakes: "118", missions: "6", temples: "6", congregations: "904" }
+                    },
+                    {
+                        id: "sister_bowles",
+                        short_name: "Sister Bowles",
+                        full_name: "Sister Tylyn Bowles",
+                        photo_url: "sisterbowles.jpg", 
+                        mission_name: "Washington Spokane Mission",
+                        description: "Situated on the eastern side of Washington state, the Spokane Mission includes the city of Spokane and the surrounding Inland Northwest region. The area is known for its outdoor activities like hiking and skiing.",
+                        country_code: "us",
+                        return_date: "2026-08-05",
+                        latitude: 47.6588, longitude: -117.426,
+                        timezone: "America/Los_Angeles",
+                        president: "Todd R. and Amy Kerr",
+                        stats: { members: "282,266", stakes: "61", missions: "7", temples: "4", congregations: "473" },
+                        
+                        // CAROUSEL
+                        slides: ["sisterbowles1.jpeg", "sisterbowles2.jpeg", "sisterbowles3.jpeg", "sisterbowles4.jpg", "sisterbowles5.jpg"],
+                        album_url: "https://photos.app.goo.gl/zmevwZpa3jMeBP699"
+                        
+                    }
+                ],
+
+                async initApp() {
+                    this.mainMap = L.map('main-map').setView([20, -10], 2);
+                    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                        attribution: '&copy; OpenStreetMap', subdomains: 'abcd', maxZoom: 19
+                    }).addTo(this.mainMap);
+
+                    const bounds = [];
+                    this.fleet.forEach(person => {
+                        const icon = L.divIcon({
+                            className: 'custom-pin',
+                            html: `<div class="pin-inner"><img src="${person.photo_url}"></div>`,
+                            iconSize: [45, 45], iconAnchor: [22, 45]
+                        });
+                        const latLng = [person.latitude, person.longitude];
+                        L.marker(latLng, {icon: icon})
+                         .addTo(this.mainMap).on('click', () => this.openModal(person));
+                        bounds.push(latLng);
+                    });
+
+                    // Auto-Center the Map
+                    if (bounds.length > 0) {
+                        this.mainMap.fitBounds(bounds, { padding: [50, 50] });
+                    }
+
+                    // Load Shapes
+                    try {
+                        const res = await fetch('missions.json');
+                        const data = await res.json();
+                        this.missionShapes = data.result ? data.result.features : data.features;
+                        
+                        const fleetMissionsClean = this.fleet.map(p => p.mission_name.replace(" Mission", ""));
+                        
+                        L.geoJSON(this.missionShapes.filter(f => 
+                            fleetMissionsClean.includes(f.properties.name)
+                        ), {
+                            style: { color: '#3b82f6', weight: 2, fillOpacity: 0.1 }
+                        }).addTo(this.mainMap);
+                    } catch (e) { console.log("No shapes found."); }
+
+                    this.fetchWeather();
+                    this.$watch('selectedPerson', val => { if(!val) this.showForecast = false; });
+                },
+
+                openModal(person) {
+                    this.selectedPerson = person;
+                    this.slideIndex = 0;
+                    
+                    setTimeout(() => {
+                        if (this.modalMap) this.modalMap.remove(); 
+                        this.modalMap = L.map('modal-map', { zoomControl: false });
+                        
+                        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                            attribution: '', subdomains: 'abcd', maxZoom: 19
+                        }).addTo(this.modalMap);
+
+                        if (this.missionShapes) {
+                            const cleanName = person.mission_name.replace(" Mission", "");
+                            const myShape = this.missionShapes.find(f => f.properties.name === cleanName);
+                            if (myShape) {
+                                const layer = L.geoJSON(myShape, {
+                                    style: { color: '#3b82f6', weight: 3, fillOpacity: 0.15 }
+                                }).addTo(this.modalMap);
+                                this.modalMap.fitBounds(layer.getBounds(), { padding: [20, 20] });
+                            } else {
+                                this.modalMap.setView([person.latitude, person.longitude], 6);
+                            }
+                        }
+                    }, 100);
+                },
+
+                closeModal() {
+                    this.selectedPerson = null;
+                },
+
+                // CAROUSEL LOGIC
+                nextSlide() {
+                    if (!this.selectedPerson?.slides) return;
+                    this.slideIndex = (this.slideIndex + 1) % this.selectedPerson.slides.length;
+                },
+                prevSlide() {
+                    if (!this.selectedPerson?.slides) return;
+                    this.slideIndex = (this.slideIndex - 1 + this.selectedPerson.slides.length) % this.selectedPerson.slides.length;
+                },
+
+                async fetchWeather() {
+                    for (let person of this.fleet) {
+                        try {
+                            const url = `https://api.open-meteo.com/v1/forecast?latitude=${person.latitude}&longitude=${person.longitude}&current=temperature_2m,weather_code&daily=weather_code,temperature_2m_max,temperature_2m_min&temperature_unit=fahrenheit&timezone=auto`;
+                            const res = await fetch(url);
+                            person.weather = await res.json();
+                        } catch (e) {}
+                    }
+                },
+                
+                // Helpers
+                getWeatherIcon(code) {
+                    if (code === undefined) return 'mdi-help-circle-outline';
+                    if (code === 0) return 'mdi-weather-sunny';
+                    if (code <= 3) return 'mdi-weather-partly-cloudy';
+                    if (code <= 48) return 'mdi-weather-fog';
+                    if (code <= 67) return 'mdi-weather-rainy';
+                    if (code <= 77) return 'mdi-weather-snowy';
+                    if (code >= 95) return 'mdi-weather-lightning';
+                    return 'mdi-weather-cloudy';
+                },
+                getDaysLeft(d) { return Math.ceil((new Date(d) - new Date()) / (864e5)); },
+                getLocalTime(tz) { try { return new Date().toLocaleTimeString('en-US', {timeZone: tz, hour:'numeric', minute:'2-digit'}); } catch { return '--:--'; } },
+                getTimeDiff(tz) {
+                    try {
+                        const now = new Date();
+                        const local = new Date(now.toLocaleString("en-US", {timeZone: tz}));
+                        const diff = Math.round((local - now) / 36e5);
+                        return diff === 0 ? "Same Time" : (diff > 0 ? `+${diff} hrs` : `${diff} hrs`);
+                    } catch { return ""; }
+                },
+                formatDateShort(d) { return new Date(d).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'2-digit'}); },
+                getDayName(dateStr) { return new Date(dateStr).toLocaleDateString('en-US', {weekday: 'short'}); }
+            }
+        }
+    </script>
+</body>
+</html>
+
+
+
+
+
